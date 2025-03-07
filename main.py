@@ -52,8 +52,8 @@ async def update_wordpress_seo(wp_url: str, api_key: str, prompt: str, post_id: 
             "_yoast_wpseo_focuskw": seo_data["keywords"]
         }
         
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
+        async with httpx.AsyncClient() as _client:
+            response = await _client.post(
                 wp_url,
                 json=wp_payload,
                 headers={
