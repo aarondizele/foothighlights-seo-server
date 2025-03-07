@@ -49,7 +49,7 @@ async def generate_and_update_seo(request: SEORequest):
         """
         
         response = client.chat.completions.create(
-            model="deepseek-reasoner",
+            model="deepseek-chat",
             temperature=0.7,
             messages=[
                 {"role": "system", "content": "You are a helpful SEO assistant"},
@@ -66,13 +66,12 @@ async def generate_and_update_seo(request: SEORequest):
         # # Step 2: Update WordPress
         wp_payload = {
             "post_id": request.post_id,
-            "content": f"{seo_data['content']}\n{seo_data['description']}",
+            "content": f"{', '.join(seo_data['content'])}\n{', '.join(seo_data['description'])}",
             "_yoast_wpseo_metadesc": seo_data["meta_description"],
             "_yoast_wpseo_focuskw": seo_data["keywords"]  # Take first keyword
         }
 
         async with httpx.AsyncClient() as _client:
-            print("send to client")
             wp_response = await _client.post(
                 WORDPRESS_API_URL,
                 json=wp_payload,
