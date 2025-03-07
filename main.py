@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from openai import OpenAI
 import json
@@ -23,15 +23,34 @@ client = OpenAI(
 )
 
 # Configure WordPress API settings
-WORDPRESS_API_URL = os.getenv("WORDPRESS_API_URL")  # e.g., "https://your-wordpress-site.com/wp-json/wp/v2/posts"
-WORDPRESS_API_KEY = os.getenv("WORDPRESS_API_KEY")  # Store in environment variables!
+WORDPRESS_API_URL = os.getenv("WORDPRESS_API_URL")
+WORDPRESS_API_KEY = os.getenv("WORDPRESS_API_KEY")
+
+async def update_wordpress_seo(wp_url: str, api_key: str, payload: dict):
+    """Background task to update WordPress content"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                wp_url,
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                }
+            )
+            if response.status_code != 200:
+                # Implement proper error logging here
+                print(f"WordPress update failed: {response.text}")
+    except Exception as e:
+        # Log exceptions
+        print(f"Exception during WordPress update: {str(e)}")
 
 @app.post("/generate-and-update-seo")
-async def generate_and_update_seo(request: SEORequest):
+async def generate_and_update_seo(request: SEORequest, background_tasks: BackgroundTasks):
     """
     Endpoint that:
     1. Generates SEO content using DeepSeek
-    2. Updates WordPress through your custom endpoint
+    2. Queues WordPress update as background task
     """
     try:
         # Step 1: Generate SEO content with DeepSeek
@@ -63,33 +82,23 @@ async def generate_and_update_seo(request: SEORequest):
         json_str = raw_content.split('```json')[1].split('```')[0].strip() if '```json' in raw_content else raw_content
         seo_data = json.loads(json_str)
         
-        # # Step 2: Update WordPress
+        # Prepare WordPress payload
         wp_payload = {
             "post_id": request.post_id,
             "content": f"{', '.join(seo_data['content'])}\n{', '.join(seo_data['description'])}",
             "_yoast_wpseo_metadesc": seo_data["meta_description"],
-            "_yoast_wpseo_focuskw": seo_data["keywords"]  # Take first keyword
+            "_yoast_wpseo_focuskw": seo_data["keywords"]
         }
 
-        async with httpx.AsyncClient() as _client:
-            wp_response = await _client.post(
-                WORDPRESS_API_URL,
-                json=wp_payload,
-                headers={
-                    "Authorization": f"Bearer {WORDPRESS_API_KEY}",
-                    "Content-Type": "application/json"
-                }
-            )
+        # Add WordPress update to background tasks
+        background_tasks.add_task(
+            update_wordpress_seo,
+            WORDPRESS_API_URL,
+            WORDPRESS_API_KEY,
+            wp_payload
+        )
 
-            if wp_response.status_code != 200:
-                raise HTTPException(
-                    status_code=wp_response.status_code,
-                    detail=f"WordPress update failed: {wp_response.text}"
-                )
-
-        return {
-            "message": "SEO updated successfully"
-        }
+        return {"message": "SEO generation complete. WordPress update queued in background."}
 
     except json.JSONDecodeError as e:
         raise HTTPException(500, f"JSON error: {str(e)}")
@@ -98,8 +107,6 @@ async def generate_and_update_seo(request: SEORequest):
     except Exception as e:
         raise HTTPException(500, f"Operation failed: {str(e)}")
 
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-    
