@@ -26,13 +26,36 @@ client = OpenAI(
 WORDPRESS_API_URL = os.getenv("WORDPRESS_API_URL")
 WORDPRESS_API_KEY = os.getenv("WORDPRESS_API_KEY")
 
-async def update_wordpress_seo(wp_url: str, api_key: str, payload: dict):
+async def update_wordpress_seo(wp_url: str, api_key: str, prompt: str, post_id: int):
     """Background task to update WordPress content"""
     try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            temperature=0.7,
+            messages=[
+                {"role": "system", "content": "You are a helpful SEO assistant"},
+                {"role": "user", "content": prompt}
+            ],
+            stream=False
+        )
+
+        # Process DeepSeek response
+        raw_content = response.choices[0].message.content
+        json_str = raw_content.split('```json')[1].split('```')[0].strip() if '```json' in raw_content else raw_content
+        seo_data = json.loads(json_str)
+        
+        # Prepare WordPress payload
+        wp_payload = {
+            "post_id": post_id,
+            "content": f"{', '.join(seo_data['content'])}\n{', '.join(seo_data['description'])}",
+            "_yoast_wpseo_metadesc": seo_data["meta_description"],
+            "_yoast_wpseo_focuskw": seo_data["keywords"]
+        }
+        
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 wp_url,
-                json=payload,
+                json=wp_payload,
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"
@@ -67,35 +90,13 @@ async def generate_and_update_seo(request: SEORequest, background_tasks: Backgro
         The keywords should be relevant to the content and title and it can be a maximum of 191 characters.
         """
         
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            temperature=0.7,
-            messages=[
-                {"role": "system", "content": "You are a helpful SEO assistant"},
-                {"role": "user", "content": prompt}
-            ],
-            stream=False
-        )
-
-        # Process DeepSeek response
-        raw_content = response.choices[0].message.content
-        json_str = raw_content.split('```json')[1].split('```')[0].strip() if '```json' in raw_content else raw_content
-        seo_data = json.loads(json_str)
-        
-        # Prepare WordPress payload
-        wp_payload = {
-            "post_id": request.post_id,
-            "content": f"{', '.join(seo_data['content'])}\n{', '.join(seo_data['description'])}",
-            "_yoast_wpseo_metadesc": seo_data["meta_description"],
-            "_yoast_wpseo_focuskw": seo_data["keywords"]
-        }
-
         # Add WordPress update to background tasks
         background_tasks.add_task(
             update_wordpress_seo,
             WORDPRESS_API_URL,
             WORDPRESS_API_KEY,
-            wp_payload
+            prompt,
+            request.post_id
         )
 
         return {"message": "SEO generation complete. WordPress update queued in background."}
