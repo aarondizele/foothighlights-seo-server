@@ -30,7 +30,7 @@ async def update_wordpress_seo(wp_url: str, api_key: str, prompt: str, post_id: 
     """Background task to update WordPress content"""
     try:
         response = client.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-reasoner",
             temperature=0.7,
             messages=[
                 {"role": "system", "content": "You are a helpful SEO assistant"},
@@ -47,7 +47,7 @@ async def update_wordpress_seo(wp_url: str, api_key: str, prompt: str, post_id: 
         # Prepare WordPress payload
         wp_payload = {
             "post_id": post_id,
-            "content": f"{', '.join(seo_data['content'])}\n{', '.join(seo_data['description'])}",
+            "content": f"{seo_data['content']}\n{seo_data['description']}",
             "_yoast_wpseo_metadesc": seo_data["meta_description"],
             "_yoast_wpseo_focuskw": seo_data["keywords"]
         }
