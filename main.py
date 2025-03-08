@@ -46,10 +46,13 @@ async def update_wordpress_seo(wp_url: str, api_key: str, prompt: str, post_id: 
         
         # Prepare WordPress payload
         wp_payload = {
-            "post_id": post_id,
-            "content": f"{', '.join(seo_data['content'])}\n{', '.join(seo_data['description'])}",
-            "_yoast_wpseo_metadesc": seo_data["meta_description"],
-            "_yoast_wpseo_focuskw": seo_data["keywords"]
+           "post_id": post_id,
+           "content": (
+              f"{', '.join(seo_data['content']) if isinstance(seo_data['content'], list) else seo_data['content']}\n"
+              f"{', '.join(seo_data['description']) if isinstance(seo_data['description'], list) else seo_data['description']}"
+           ),
+           "_yoast_wpseo_metadesc": seo_data["meta_description"],
+           "_yoast_wpseo_focuskw": seo_data["keywords"]
         }
         
         async with httpx.AsyncClient() as _client:
@@ -85,9 +88,9 @@ async def generate_and_update_seo(request: SEORequest, background_tasks: Backgro
             "keywords": "...",
             "description": "..."
         }}
-        For content, generate multiple short name variations for {request.team_names} to optimize search queries. Include abbreviations, nicknames, and different spellings. 
+        For content, generate multiple short name variations for {request.team_names} to optimize search queries, including abbreviations, nicknames, and different spellings. 
         For meta_description and keywords, use combinations of team names with this title: {request.title}.
-        For description,  generate multiple short name variations for {request.title} to optimize search queries. Include abbreviations and different spellings.
+        For description,  generate multiple short name variations for {request.title} to optimize search queries, including abbreviations, nicknames, and different spellings.
         The keywords should be relevant to the content and title and it can be a maximum of 191 characters.
         """
         
