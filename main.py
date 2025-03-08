@@ -64,7 +64,7 @@ async def update_wordpress_seo(wp_url: str, api_key: str, prompt: str, post_id: 
             if response.status_code != 200:
                 # Implement proper error logging here
                 print(f"WordPress update failed: {response.text}")
-            print("WordPress update successful:", wp_payload)
+            print("WordPress update successful")
     except Exception as e:
         # Log exceptions
         print(f"Exception during WordPress update: {str(e)}")
